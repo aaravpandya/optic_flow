@@ -22,8 +22,8 @@ import queue
 import video
 import time
 from threading import Thread, Event
-
-
+from multiprocessing import Process, Queue
+import os
 
 def draw_flow(img, flow, step=16):
     h, w = img.shape[:2]
@@ -67,9 +67,9 @@ def producer(pipeline,e):
         fn = 0
 
     cam = video.create_capture("Set01_video01.h264")
+    previmg =  img = cam.read()[1]
+    index = 0
     while True:
-        
-        
         if(pipeline.qsize() > 100):
             time.sleep(10)
             print("sleeping")
@@ -78,8 +78,10 @@ def producer(pipeline,e):
         if(not _ret):
             e.set()
             break
-        pipeline.put(img)
-
+        index += 1
+        pipeline.put((index,previmg,img))
+        previmg = img
+        
         # print("put message")
     return
 
@@ -87,31 +89,37 @@ def consumer(prod,cons,e):
     init = 0
     print("e set" + str(e.isSet()))
     while not e.isSet() or not prod.empty():
-        if(init == 0):
-            prevgray =  gray = cv.cvtColor(prod.get(), cv.COLOR_BGR2GRAY)
-            init = 1
-            continue
-        img = prod.get()
+        # if(init == 0):
+        #     prevgray =  gray = cv.cvtColor(prod.get(), cv.COLOR_BGR2GRAY)
+        #     init = 1
+        #     continue
+        index, previmg, img = prod.get()
         # print("message received")
+        prevgray = cv.cvtColor(previmg, cv.COLOR_BGR2GRAY)
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         flow = cv.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-        prevgray = gray
-        cons.put((img,flow))
+        cons.put((index,flow))
         
     return
 
 def saver(cons,e):
     out = cv.VideoWriter('output.avi', cv.VideoWriter_fourcc(*'mp4v'), 30.0, (1920,1080))
     ctr = 0
+    index = 0
+    list_flows = []
     while not e.isSet() or not cons.empty():
-        img, flow = cons.get()
-        hsv = draw_hsv(flow)
-        out.write(hsv)
-        cv.imshow("sa",hsv)
-        cv.waitKey(5)
-        if(ctr%20==0):
-            print(ctr)
-        ctr += 1
+        if(not cons.empty()):
+            list_flows.append(cons.get())
+        for item in list_flows:
+            if item[0] == (index + 1): 
+                index += 1
+                hsv = draw_hsv(item[1])
+                out.write(hsv)
+                cv.imshow("sa",hsv)
+                cv.waitKey(5)
+                if(ctr%20==0):
+                    print(ctr)
+                ctr += 1
     out.release()
     return
 
@@ -124,17 +132,24 @@ def main():
 
     # cam = video.create_capture(fn)
     # _ret, prev = cam.read()
-    producer_pipeline = queue.Queue()
-    consumer_pipeline = queue.Queue()
+    cpu_count = os.cpu_count()
+    
+    producer_pipeline = Queue()
+    consumer_pipeline = Queue()
     e = Event()
-    prod_ = Thread(target = producer, args = (producer_pipeline,e))
-    cons_ = Thread(target = consumer, args = (producer_pipeline,consumer_pipeline,e))
-    saver_ = Thread(target = saver, args = (consumer_pipeline,e))
+    prod_ = Process(target = producer, args = (producer_pipeline,e))
+    consumers = []
+    for i in range(cpu_count-2):
+        consumers.append(Process(target = consumer, args = (producer_pipeline,consumer_pipeline,e)))
+    # cons_ = Process(target = consumer, args = (producer_pipeline,consumer_pipeline,e))
+    saver_ = Process(target = saver, args = (consumer_pipeline,e))
     prod_.start()
-    cons_.start()
+    for item in consumers:
+        item.start()
     saver_.start()
     prod_.join()
-    cons_.join()
+    for item in consumers:
+        item.join()
     saver_.join()
     # prevgray = cv.cvtColor(prev, cv.COLOR_BGR2GRAY)
     # show_hsv = False
