@@ -80,7 +80,7 @@ def producer(pipeline,e):
             break
         pipeline.put(img)
 
-        print("put message")
+        # print("put message")
     return
 
 def consumer(prod,cons,e):
@@ -88,11 +88,11 @@ def consumer(prod,cons,e):
     print("e set" + str(e.isSet()))
     while not e.isSet() or not prod.empty():
         if(init == 0):
-            prevgray = prod.get()
+            prevgray =  gray = cv.cvtColor(prod.get(), cv.COLOR_BGR2GRAY)
             init = 1
             continue
         img = prod.get()
-        print("message received")
+        # print("message received")
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         flow = cv.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
         prevgray = gray
@@ -101,14 +101,12 @@ def consumer(prod,cons,e):
     return
 
 def saver(cons,e):
-    out = cv.VideoWriter('output.avi', -1, 20.0, (640,480))
+    out = cv.VideoWriter('output.avi', cv.VideoWriter_fourcc(*'mp4v'), 30.0, (1920,1080))
     ctr = 0
     while not e.isSet() or not cons.empty():
         img, flow = cons.get()
         hsv = draw_hsv(flow)
-        out.write(flow)
-        cv.imshow("fa",hsv)
-        cv.waitKey(5)
+        out.write(hsv)
         if(ctr%20==0):
             print(ctr)
         ctr += 1
@@ -129,11 +127,13 @@ def main():
     e = Event()
     prod_ = Thread(target = producer, args = (producer_pipeline,e))
     cons_ = Thread(target = consumer, args = (producer_pipeline,consumer_pipeline,e))
+    saver_ = Thread(target = saver, args = (consumer_pipeline,e))
     prod_.start()
     cons_.start()
+    saver_.start()
     prod_.join()
     cons_.join()
-
+    saver.join()
     # prevgray = cv.cvtColor(prev, cv.COLOR_BGR2GRAY)
     # show_hsv = False
     # show_glitch = False
