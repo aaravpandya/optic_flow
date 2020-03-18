@@ -66,7 +66,7 @@ def producer(pipeline,e):
     except IndexError:
         fn = 0
 
-    cam = video.create_capture("Set01_video01.h264")
+    cam = video.create_capture("Set02_video01.h264")
     previmg =  img = cam.read()[1]
     index = 0
     while True:
