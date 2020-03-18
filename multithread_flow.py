@@ -115,11 +115,13 @@ def saver(cons,e):
                 index += 1
                 hsv = draw_hsv(item[1])
                 out.write(hsv)
-                cv.imshow("sa",hsv)
-                cv.waitKey(5)
+                # cv.imshow("sa",hsv)
+                # cv.waitKey(5)
                 if(ctr%20==0):
                     print(ctr)
                 ctr += 1
+                list_flows.remove(item)
+                break
     out.release()
     return
 
