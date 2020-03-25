@@ -66,8 +66,11 @@ def producer(pipeline,e):
     except IndexError:
         fn = 0
 
-    cam = video.create_capture("Set02_video01.h264")
+    cam = video.create_capture("brno/video.avi")
+    frame = 102780
+    cam.set(cv.CAP_PROP_POS_FRAMES, frame-1)
     previmg =  img = cam.read()[1]
+    previmg = img = cv.resize(img, (1280,720), interpolation = cv.INTER_AREA)
     index = 0
     while True:
         if(pipeline.qsize() > 100):
@@ -75,9 +78,11 @@ def producer(pipeline,e):
             print("sleeping")
             continue
         _ret, img = cam.read()
+        _ret, img = cam.read()
         if(not _ret):
             e.set()
             break
+        img = cv.resize(img, (1280,720), interpolation = cv.INTER_AREA)
         index += 1
         pipeline.put((index,previmg,img))
         previmg = img
@@ -99,11 +104,10 @@ def consumer(prod,cons,e):
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         flow = cv.calcOpticalFlowFarneback(prevgray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
         cons.put((index,flow))
-        
     return
 
 def saver(cons,e):
-    out = cv.VideoWriter('output.avi', cv.VideoWriter_fourcc(*'mp4v'), 30.0, (1920,1080))
+    out = cv.VideoWriter('output_brno_5_left.avi', cv.VideoWriter_fourcc(*'mp4v'), 50.0, (1280,720))
     ctr = 0
     index = 0
     list_flows = []
